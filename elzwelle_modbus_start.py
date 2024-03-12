@@ -64,6 +64,7 @@ class sheetapp_tk(tkinter.Tk):
         self.menuFile = tkinter.Menu(self.menuBar, tearoff=False)
         self.menuFile.add_command(command = self.saveSheet, label="Blatt speichern")
         self.menuFile.add_command(command = self.loadSheet, label="Blatt laden")
+        self.menuFile.add_command(command = self.clearSheet, label="Blatt löschen")
         
         self.menuBar.add_cascade(label="Datei",menu=self.menuFile)
         
@@ -77,9 +78,6 @@ class sheetapp_tk(tkinter.Tk):
           
         self.startTab   = ttk.Frame(self.tabControl) 
         self.tabControl.add(self.startTab, text ='Start') 
-        
-        self.finishTab   = ttk.Frame(self.tabControl) 
-        self.tabControl.add(self.finishTab, text ='Ziel')
         
         self.tabControl.pack(expand = 1, fill ="both") 
          
@@ -97,45 +95,19 @@ class sheetapp_tk(tkinter.Tk):
                                index_fg  = "gray",
                                font = ("Calibri", 12, "bold")
                             )
-        self.startSheet.enable_bindings()
         self.startSheet.grid(column = 0, row = 0)
         self.startSheet.grid(row = 0, column = 0, sticky = "nswe")
         self.startSheet.span('A:').align('right')
         self.startSheet.span('A').readonly()
-        self.startSheet.span('B').readonly()
+        if config.getboolean('view','hide_slots'):
+            self.startSheet.hide_columns(3)
         self.startSheet.span('D').readonly()
         #self.startSheet.hide_columns(3)
         
         self.startSheet.disable_bindings("All")
-        self.startSheet.enable_bindings("edit_cell","single_select","drag_select","row_select","copy")
+        self.startSheet.enable_bindings("edit_cell","single_select","right_click_popup_menu",
+                                        "drag_select","row_select","copy")
         self.startSheet.extra_bindings("end_edit_cell", func=self.startEndEditCell)
-        
-        #----- Start Page -------
-                 
-        self.finishTab.grid_columnconfigure(0, weight = 1)
-        self.finishTab.grid_rowconfigure(0, weight = 1)
-        self.finishSheet = Sheet(self.finishTab,
-                               name = 'finishSheet',
-                               #data = [['00:00:00','0,00','',''] for r in range(2)],
-                               header = ['Uhrzeit','Zeitstempel','Startnummer','Slot'],
-                               header_bg = "azure",
-                               header_fg = "black",
-                               index_bg  = "azure",
-                               index_fg  = "gray",
-                               font = ("Calibri", 12, "bold")
-                            )
-        self.finishSheet.enable_bindings()
-        self.finishSheet.grid(column = 0, row = 0)
-        self.finishSheet.grid(row = 0, column = 0, sticky = "nswe")
-        self.finishSheet.span('A:').align('right')
-        self.finishSheet.span('A').readonly()
-        self.finishSheet.span('B').readonly()
-        self.finishSheet.span('D').readonly()
-        self.finishSheet.hide_columns(3)
-        
-        self.finishSheet.disable_bindings("All")
-        self.finishSheet.enable_bindings("edit_cell","single_select","drag_select","row_select","copy")
-        self.finishSheet.extra_bindings("end_edit_cell", func=self.finishEndEditCell)
         
     def startEndEditCell(self, event):
         print("Start EndEditCell: ")
@@ -147,36 +119,18 @@ class sheetapp_tk(tkinter.Tk):
             slot  = self.startSheet[row,3].data
             self.pending = row    
             self.startSheet.after_idle(self.sendStartMsg,"${:},{:}\r".format(value,slot))
-    
-    def finishEndEditCell(self, event):
-        print("Start EndEditCell: ")
-        
-        for cell, value in event.cells.table.items():
-            row = cell[0]
-            col = cell[1]
-            print(row,col,value)
-            slot  = self.startSheet[row,3].data
-            self.startSheet.after_idle(self.sendStartMsg,"${:},{:}\r".format(value,slot))
-                     
+                        
     def sendStartMsg(self,*args):
         if messagebox.askyesno("MODBUS", "Sende Startnummer zur Basis"):
             if len(args) == 1:
                 print("Send: ",args[0])
                 serialPort.write(args[0].encode())
                 
-    def sendFinishMsg(self,*args):
-        if messagebox.askyesno("MODBUS", "Sende Startnummer zur Basis"):
-            if len(args) == 1:
-                print("Send: ",args[0])
-                serialPort.write(args[0].encode())
-
     def getSelectedSheet(self):
         tab = self.tabControl.tab(self.tabControl.select(),"text")
         if tab == "Start":
             return self.startSheet
-        elif tab == "Ziel":
-            return self.finishSheet
-
+        
     def saveSheet(self):
         saveSheet = self.getSelectedSheet()
         print("Save: "+saveSheet.name)
@@ -239,6 +193,23 @@ class sheetapp_tk(tkinter.Tk):
         except Exception as error:
             print(error)
             return
+        
+    def clearSheet(self):
+        tab = self.tabControl.index(self.tabControl.select())  
+        if messagebox.askyesno("Start/Ziel", "Alle Daten löschen ?"):
+            print("Clear sheet:",tab)
+            if tab == 0:
+                self.startSheet.deselect()
+                self.startSheet.data = []
+    
+    def resendData(self):
+        row = self.startSheet.get_currently_selected().row
+        print("Resend: ",row)
+        num  = self.startSheet[row,2].data.strip()
+        slot = self.startSheet[row,3].data.strip()
+        self.pending = row    
+        self.startSheet.after_idle(self.sendStartMsg,"${:},{:}\r".format(num,slot))
+        
 #-------------------------------------------------------------------
 
     
@@ -260,7 +231,9 @@ if __name__ == '__main__':
                         'port':'/dev/ttyUSB0',
                         'baud':'115200',
                         'timeout':'10'}
-      
+    
+    config['view'] = {'hide_slots':'no'}
+     
     # Platform specific
     if myPlatform == 'Windows':
         # Platform defaults
@@ -270,12 +243,6 @@ if __name__ == '__main__':
 
     # ---------- setup and start GUI --------------
     app = sheetapp_tk(None)
-    
-    if not config.getboolean('view','start_enabled'):
-        app.tabControl.tab(0, state="hidden")
-        
-    if not config.getboolean('view','finish_enabled'):
-        app.tabControl.tab(1, state="hidden") 
     
     # Initialize the port    
     serialPort = serial.Serial(config.get('serial', 'port'),
@@ -308,13 +275,18 @@ if __name__ == '__main__':
                                        "{:0.2f}".format(stamp/100).replace('.',','),
                                        '0',slot]) 
             row = app.startSheet.get_currently_selected().row
+            app.startSheet[row].highlight(bg='#D3E3FD')
             app.startSheet.see(row)   
      
     def processMessage(line): 
         if app.pending >= 0:
-            app.startSheet[app.pending].highlight(bg='aquamarine')
-            app.pending = -1
-            print("Read msg: ", line)    
+            print("Read msg: ", line)
+            if line == "AKN":
+                app.startSheet[app.pending].highlight(bg='aquamarine')
+                app.pending = -1
+            if line == "NAK":
+                app.startSheet[app.pending].highlight(bg="pink")
+                app.pending = -1    
                           
     # Configure threading
     usbReader = threading.Thread(target = readFunc, args=[serialPort])
@@ -322,9 +294,19 @@ if __name__ == '__main__':
     
     app.title("MODBUS Start/Ziel Tabelle Elz-Zeit")
     
+    app.startSheet.popup_menu_add_command(
+        "Clear sheet data",
+        app.clearSheet,
+    )
+    
+    app.startSheet.popup_menu_add_command(
+        "Resend data",
+        app.resendData,
+    )
+    
     # run
     app.mainloop()
     print(time.asctime(), "GUI done")
-          
+         
     # Stop all dangling threads
     os.abort()
