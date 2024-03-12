@@ -256,6 +256,8 @@ if __name__ == '__main__':
                 line = port.readline().decode("utf-8").strip() 
                 if (len(line) > 0) and line[0] == '$':
                     app.startSheet.after_idle(insertStamp,line[1:])
+                elif (len(line) > 0) and line[0] == '#':
+                    app.startSheet.after_idle(updateNum,line[1:])
                 elif (len(line) > 0) and line[0] == '!':
                     app.startSheet.after_idle(processMessage,line[1:])
                 elif (len(line) > 0) and line[0] == '?':
@@ -278,12 +280,35 @@ if __name__ == '__main__':
             app.startSheet[row].highlight(bg='#D3E3FD')
             app.startSheet.see(row)   
      
+    def updateNum(line):  
+        print("Check number: ",line)
+        
+        data = line.split(',')
+        if len(data) == 2:
+            num  = int(data[0].strip()) 
+            slot = int(data[1].strip())
+            if app.pending >= 0:
+                row  = app.startSheet[app.pending].data
+                if (int(row[3]) == slot):
+                    app.startSheet.set_cell_data(app.pending,2,num)
+                    app.startSheet[app.pending].highlight(bg='aquamarine')
+                app.pending = -1
+            else:
+                slots = app.startSheet.span('D').data
+                print("Slots:",slots)
+                if type(slots) is int:
+                    row = slots
+                else:
+                    row = slots.index(str(slot))
+                app.startSheet.set_cell_data(row,2,num)
+                app.startSheet[row].highlight(bg='aquamarine')
+            
     def processMessage(line): 
         if app.pending >= 0:
             print("Read msg: ", line)
             if line == "AKN":
-                app.startSheet[app.pending].highlight(bg='aquamarine')
-                app.pending = -1
+                app.startSheet[app.pending].highlight(bg='khaki')
+                #app.pending = -1
             if line == "NAK":
                 app.startSheet[app.pending].highlight(bg="pink")
                 app.pending = -1    
