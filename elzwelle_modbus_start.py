@@ -69,7 +69,7 @@ class sheetapp_tk(tkinter.Tk):
         
         self.menuBar.add_cascade(label="Datei",menu=self.menuFile)
         
-        self.pageHeader = tkinter.Label(self,text="Startnummer Eingabe",
+        self.pageHeader = tkinter.Label(self,text="START    Startnummer Eingabe",
                                         font=("Arial", 18),
                                         bg='#D3E3FD')
         self.pageHeader.pack(expand = 0, fill ="x") 
@@ -100,6 +100,7 @@ class sheetapp_tk(tkinter.Tk):
         self.startSheet.grid(row = 0, column = 0, sticky = "nswe")
         self.startSheet.span('A:').align('right')
         self.startSheet.span('A').readonly()
+        self.startSheet.span('B').readonly()
         if config.getboolean('view','hide_slots'):
             self.startSheet.hide_columns(3)
         self.startSheet.span('D').readonly()
@@ -109,6 +110,8 @@ class sheetapp_tk(tkinter.Tk):
         self.startSheet.enable_bindings("edit_cell","single_select","right_click_popup_menu",
                                         "drag_select","row_select","copy")
         self.startSheet.extra_bindings("end_edit_cell", func=self.startEndEditCell)
+        
+        self.startSheet.edit_validation(self.validateEdits)
         
     def startEndEditCell(self, event):
         print("Start EndEditCell: ")
@@ -164,6 +167,20 @@ class sheetapp_tk(tkinter.Tk):
         except Exception as error:
             print(error)
             return
+        
+    def validateEdits(self, event):
+        print("Validate: ")
+        for cell, value in event.cells.table.items():
+            row = cell[0]
+            col = cell[1]
+            print(row,col,value)
+            try:
+                num = int(value.replace(',','.'))
+                return "{:d}".format(num)
+            except Exception as error:
+                print(error)
+                messagebox.showerror(title="Fehler", message="Keine gültige Zahl !")
+        return
 
     def loadSheet(self):
         loadSheet = self.getSelectedSheet()
