@@ -41,7 +41,8 @@ class sheetapp_tk(tkinter.Tk):
         self.xCol       = -1
         self.xVal       = ''
         self.pending    = -1
-
+        self.maxSlots = config.getint('view','slots')
+        
     def showError(self, *args):
         err = traceback.format_exception(*args)
         messagebox.showerror('Exception',err)
@@ -279,7 +280,10 @@ if __name__ == '__main__':
             row = app.startSheet.get_currently_selected().row
             app.startSheet[row].highlight(bg='#D3E3FD')
             app.startSheet.see(row)   
-     
+            if app.startSheet.get_total_rows() > app.maxSlots:
+                print("Delete row")
+                app.startSheet.del_row(0)
+            
     def updateNum(line):  
         print("Check number: ",line)
         
